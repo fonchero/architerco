@@ -28,4 +28,4 @@ El orquestador principal es `migrar_proyecto_completo.py`, que realiza los sigui
 Usa:
 
 ```bash
-python migrar_todos_los_proyectos.py IN OUT pom_template.xml application-global.properties
+python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <ruta_pom_template.xml> <ruta_application-global.properties>
