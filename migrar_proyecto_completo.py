@@ -5,16 +5,24 @@ from pathlib import Path
 def ejecutar(nombre_script, argumentos):
     print(f"\n[STEP] Ejecutando: {nombre_script} {argumentos}")
     try:
-        resultado = subprocess.run(
-            ["python", nombre_script] + argumentos,
-            check=True,
-            capture_output=True,
+        proceso = subprocess.Popen(
+            [sys.executable, "-u", nombre_script] + argumentos,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
             text=True
         )
-        print(resultado.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Error en {nombre_script}")
-        print(e.stderr)
+
+        for linea in proceso.stdout:
+            print(linea, end='', flush=True)
+
+        proceso.wait()
+        if proceso.returncode != 0:
+            print(f"[ERROR] {nombre_script} terminó con código {proceso.returncode}")
+    except Exception as e:
+        print(f"[ERROR] Excepción al ejecutar {nombre_script}: {e}")
+
+
  
 def obtener_nombre_directorio(path_str):
     return Path(path_str).resolve().name
@@ -83,5 +91,8 @@ if __name__ == "__main__":
  
     # Paso 7: crear application.properties desde archivo global
     ejecutar("ajustar_application_properties.py", [str(ruta_out), str(ruta_global_properties)])
+    
+    # Paso 8: aplicar formato con google-java-format
+    ejecutar("google_formatter.py", [str(ruta_out)])
  
     print(f"\n[OK] Migración completada para: {nombre_proyecto}")
