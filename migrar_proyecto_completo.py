@@ -56,6 +56,9 @@ if __name__ == "__main__":
 
     # Paso 5.6: sobreescribir SingletonProperties
     ejecutar("ajustar_singleton_properties.py", [str(ruta_out)])
+    
+    # Paso 5.6.1: actualizar JwtContextFilter
+    ejecutar("ajustar_jwt_context_filter.py", [str(ruta_out)])
 
     # Paso 5.7: actualizar métodos consumer (header Authorization)
     ejecutar("ajustar_metodos_consumer.py", [str(ruta_out)])
@@ -68,6 +71,9 @@ if __name__ == "__main__":
     
     # Paso 5.9.1: ajustar MainRouteBuilder si existe
     ejecutar("ajustar_main_routebuilder.py", [str(ruta_out)])
+    
+    # Paso 5.9.2: reemplazar return null por llamada a producerTemplate y agregar lógica de envío
+    ejecutar("ajustar_services_llamada_camel.py", [str(ruta_out)])
 
     # Paso 5.10: actualizar expresiones ${property.*} a ${exchangeProperty.*}
     ejecutar("ajustar_property_expression.py", [str(ruta_out)])
