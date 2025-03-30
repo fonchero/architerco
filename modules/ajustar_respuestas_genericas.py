@@ -2,22 +2,22 @@
 import re
 
 def reemplazar_metodos_genericos(content: str) -> str:
-    # Solo procesa si hay retorno tipo BaseResponse o BaseProxyResponse
     if not re.search(r'public\s+(Base(Response|ProxyResponse)<.*?>)', content):
         return content
 
-    # Regex para capturar métodos con return null y tipo BaseResponse o BaseProxyResponse
     patron_metodo = re.compile(
-        r'(public\s+(Base(?:Proxy)?Response<[^>]+>)\s+(\w+)\s*\((.*?)\)\s*\{[^}]*?)return\s+null\s*;\s*\}',
+        r'(public\s+(Base(?:Proxy)?Response<([^>]+)>)\s+(\w+)\s*\((.*?)\)\s*\{[^}]*?)return\s+null\s*;\s*\}',
         re.DOTALL
     )
 
     def reemplazar(match):
-        tipo_retorno = match.group(2)
-        nombre_metodo = match.group(3)
-        parametros = match.group(4)
+        tipo_retorno_completo = match.group(2)
+        tipo_generico = match.group(3)
+        nombre_metodo = match.group(4)
+        parametros = match.group(5)
 
-        # Separar los parámetros y detectar el de tipo body
+        tipo_clase_base = tipo_retorno_completo.split('<')[0]
+
         params = [p.strip() for p in parametros.split(',') if p.strip()]
         cleaned_params = []
         body_param = 'null'
@@ -30,23 +30,25 @@ def reemplazar_metodos_genericos(content: str) -> str:
                     body_param = parts[1]
             cleaned_params.append(param)
 
-        # Agregar @Context HttpHeaders httpHeaders si no está
         if not tiene_http_headers:
             cleaned_params.append('@Context HttpHeaders httpHeaders')
 
-        # Reconstruir firma
-        nueva_firma = f'public {tipo_retorno} {nombre_metodo}({", ".join(cleaned_params)}) {{'
+        nueva_firma = f'public {tipo_retorno_completo} {nombre_metodo}({", ".join(cleaned_params)}) {{'
 
-        # Generar cuerpo
-        cuerpo = f"""        Object response = sendRequestToCamel(\"direct:{nombre_metodo}\", {body_param}, httpHeaders, null);
-        {tipo_retorno} resultado = new {tipo_retorno}();
-        resultado.setData(response);
+        cuerpo = f'''        {tipo_generico} data = sendRequestToCamel("direct:{nombre_metodo}", {body_param}, httpHeaders, null, {tipo_generico}.class);
+        {tipo_retorno_completo} resultado = new {tipo_clase_base}<>();
+        resultado.setData(data);
         resultado.setSuccess(true);
         resultado.setWarning(false);
-        resultado.setMessage(\"OK\");
-        return resultado;"""
+        resultado.setMessage("OK");
+        return resultado;'''
 
         return f"{nueva_firma}\n{cuerpo}\n    }}"
 
-    print(f"[DEBUG] Reemplazando métodos genéricos en clase con {len(patron_metodo.findall(content))} coincidencias.")
-    return patron_metodo.sub(reemplazar, content)
+    matches = list(patron_metodo.finditer(content))
+    print(f"[DEBUG] Reemplazando métodos genericos en clase con {len(matches)} coincidencias.")
+
+    for match in reversed(matches):
+        content = content[:match.start()] + reemplazar(match) + content[match.end():]
+
+    return content

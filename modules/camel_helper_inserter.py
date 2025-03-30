@@ -64,6 +64,37 @@ def ensure_camel_helper_method(content: str) -> str:
 
         return response;
     }
+        private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
+                                     Map<String, String> queryParams, Class<T> responseType) {
+        Map<String, Object> headers = httpHeaders.getRequestHeaders()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().get(0)));
+
+        if (queryParams != null) {
+            queryParams.forEach((key, value) -> {
+                if (value != null) {
+                    headers.put(key, value);
+                }
+            });
+        }
+
+        Object response = producerTemplate.requestBodyAndHeaders(endpoint, body, headers);
+
+        if (response instanceof String) {
+            String responseString = (String) response;
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                return objectMapper.readValue(responseString, responseType);
+            } catch (JsonProcessingException e) {
+                System.err.println("⚠ Error al deserializar respuesta de Camel: " + e.getMessage());
+            }
+        }
+
+        return responseType.cast(response);
+    }
 '''
 
     # ======== 3. Insertar el helper antes de la última llave de cierre de clase ==========
