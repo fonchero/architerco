@@ -22,7 +22,7 @@ def eliminar_con_permisos(path):
         except Exception as e:
             print(f"[ERROR] No se pudo eliminar {child}: {e}")
 
-def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path):
+def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path, aplicar_format_flag):
     in_path = Path(in_path).resolve()
     out_path = Path(out_path).resolve()
     pom_template_path = Path(pom_template_path).resolve()
@@ -50,7 +50,8 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path)
             str(proyecto),
             str(out_path),
             str(pom_template_path),
-            str(global_props_path)
+            str(global_props_path),
+            aplicar_format_flag
         ]
         try:
             proceso = subprocess.Popen(
@@ -69,13 +70,18 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path)
             print(f"[ERROR] Excepción al migrar {proyecto.name}: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Uso: python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <pom_template.xml> <application-global.properties>")
+    if len(sys.argv) != 6:
+        print("Uso: python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <pom_template.xml> <application-global.properties> <aplicar_format (1|0)>")
         sys.exit(1)
 
     carpeta_in = sys.argv[1]
     carpeta_out = sys.argv[2]
     pom_template = sys.argv[3]
     global_properties = sys.argv[4]
+    aplicar_format_flag = sys.argv[5]
 
-    ejecutar_para_todos(carpeta_in, carpeta_out, pom_template, global_properties)
+    if aplicar_format_flag not in ("0", "1"):
+        print("[ERROR] El valor del flag aplicar_format debe ser '0' o '1'")
+        sys.exit(1)
+
+    ejecutar_para_todos(carpeta_in, carpeta_out, pom_template, global_properties, aplicar_format_flag)

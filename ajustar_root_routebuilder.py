@@ -106,6 +106,32 @@ def reemplazar_root_routebuilder(ruta_proyecto):
             with open(archivo, "w", encoding="utf-8") as f:
                 f.write(PLANTILLA_FIX.format(package=package_name))
             print(f"[OK] RootRouteBuilder sobrescrito en: {archivo}")
+
+            # ===== Buscar y modificar Constants.java en el mismo paquete =====
+            ruta_constants = archivo.parent / "Constants.java"
+            if ruta_constants.exists():
+                with open(ruta_constants, "r", encoding="utf-8") as f:
+                    contenido_const = f.read()
+
+                cambios = []
+                if 'public static final String HTTP_TIME_OUT' not in contenido_const:
+                    cambios.append('    public static final String HTTP_TIME_OUT = "http";')
+                if 'public static final String HTTPS_TIME_OUT' not in contenido_const:
+                    cambios.append('    public static final String HTTPS_TIME_OUT = "https";')
+
+                if cambios:
+                    contenido_const = re.sub(r'(public\s+class\s+Constants\s*\{)',
+                                             r'\1\n' + '\n'.join(cambios),
+                                             contenido_const)
+                    with open(ruta_constants, "w", encoding="utf-8") as f:
+                        f.write(contenido_const)
+                    print(f"[OK] Constants.java actualizado con constantes TIME_OUT en: {ruta_constants}")
+                else:
+                    print("[INFO] Constants.java ya contenía las constantes necesarias.")
+
+            else:
+                print("[WARN] No se encontró Constants.java en el mismo paquete que RootRouteBuilder.java")
+
         except Exception as e:
             print(f"[ERROR] No se pudo sobrescribir {archivo}: {e}")
 
