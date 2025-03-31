@@ -4,7 +4,7 @@ from modules.method_parser import process_methods
 from modules.inject import inject_producer_and_context
 from modules.swagger_migration import migrate_swagger_annotations
 from modules.camel_helper_inserter import ensure_camel_helper_method
-from modules.ajustar_respuestas_genericas import reemplazar_metodos_genericos
+from modules.ajustar_respuestas_genericas import ajustar_respuestas_genericas
 from pathlib import Path
 
 
@@ -19,7 +19,7 @@ def process_java_file(file_path):
     content = migrate_swagger_annotations(content)
     content = inject_producer_and_context(content)
     content = process_methods(content)
-    content = reemplazar_metodos_genericos(content)
+    content = ajustar_respuestas_genericas(content)
     content = ensure_camel_helper_method(content)
     
 

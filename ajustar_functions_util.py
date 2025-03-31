@@ -1,4 +1,5 @@
 import sys
+import re
 from pathlib import Path
 
 METODO_REQUERIDO = """
@@ -36,13 +37,17 @@ def ajustar_functions(path_base):
             if imp not in content:
                 content = content.replace("public class Functions {", f"{imp}\n\npublic class Functions {{")
 
-        # Insertar método antes de la última llave de cierre
-        content = content.rstrip("} \n\t") + METODO_REQUERIDO + "\n}"
+        # Buscar la última llave de cierre que no pertenece a otro método
+        ultima_llave = content.rstrip().rfind("}")
+        if ultima_llave != -1:
+            content = content[:ultima_llave].rstrip() + "\n" + METODO_REQUERIDO + "\n}\n"
 
-        with open(java_file, "w", encoding="utf-8") as f:
-            f.write(content)
+            with open(java_file, "w", encoding="utf-8") as f:
+                f.write(content)
 
-        print(f"[OK] Método agregado en {java_file}")
+            print(f"[OK] Método agregado correctamente en {java_file}")
+        else:
+            print(f"[ERROR] No se encontró cierre de clase en {java_file}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

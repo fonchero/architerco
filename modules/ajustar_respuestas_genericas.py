@@ -1,60 +1,58 @@
-# modules/ajustar_respuestas_genericas.py
 import re
 
-def reemplazar_metodos_genericos(content: str) -> str:
-    if not re.search(r'public\s+(Base(Response|ProxyResponse)<.*?>)', content):
+def ajustar_respuestas_genericas(content: str) -> str:
+    if not content:
         return content
 
-    patron_metodo = re.compile(
-        r'(public\s+(Base(?:Proxy)?Response<([^>]+)>)\s+(\w+)\s*\((.*?)\)\s*\{[^}]*?)return\s+null\s*;\s*\}',
-        re.DOTALL
+    # Detecta métodos con @annotations arriba, que retornen BaseResponse<...> y estén vacíos
+    pattern = re.compile(
+        r'(?:@\w+(?:\([^)]*\))?\s*)*'                              # Anotaciones múltiples (como @GET, @Path, etc.)
+        r'(public\s+BaseResponse<\s*([\w<>]+)\s*>)\s+'             # Firma: public BaseResponse<T>
+        r'(\w+)\s*\(([^)]*)\)\s*'                                  # Nombre y parámetros
+        r'\{\s*return null;\s*\}',                                 # Cuerpo vacío
+        re.MULTILINE
     )
 
-    def reemplazar(match):
-        tipo_retorno_completo = match.group(2)
-        tipo_generico = match.group(3)
-        nombre_metodo = match.group(4)
-        parametros = match.group(5)
+    def add_httpheaders(params: str) -> str:
+        if "HttpHeaders" in params:
+            return params
+        if not params.strip():
+            return "@Context HttpHeaders httpHeaders"
+        return params.strip() + ", @Context HttpHeaders httpHeaders"
 
-        tipo_clase_base = tipo_retorno_completo.split('<')[0]
+    def build_body(return_type: str, method_name: str) -> str:
+        camel_endpoint = method_name[0].lower() + method_name[1:]
 
-        params = [p.strip() for p in parametros.split(',') if p.strip()]
-        cleaned_params = []
-        body_param = 'null'
-        tiene_http_headers = any('@Context' in p and 'HttpHeaders' in p for p in params)
+        if return_type.startswith("List<") and return_type.endswith(">"):
+            return (
+                f'{return_type} data = sendRequestToCamel("direct:{camel_endpoint}", null, httpHeaders, null, new TypeReference<{return_type}>() {{}});\n'
+                f'        BaseResponse<{return_type}> resultado = new BaseResponse<>();\n'
+                f'        resultado.setData(data);\n'
+                f'        resultado.setSuccess(true);\n'
+                f'        resultado.setWarning(false);\n'
+                f'        resultado.setMessage("OK");\n'
+                f'        return resultado;'
+            )
+        else:
+            return (
+                f'{return_type} data = sendRequestToCamel("direct:{camel_endpoint}", null, httpHeaders, null, {return_type}.class);\n'
+                f'        BaseResponse<{return_type}> resultado = new BaseResponse<>();\n'
+                f'        resultado.setData(data);\n'
+                f'        resultado.setSuccess(true);\n'
+                f'        resultado.setWarning(false);\n'
+                f'        resultado.setMessage("OK");\n'
+                f'        return resultado;'
+            )
 
-        for param in params:
-            cleaned_params.append(param)
-            if '@Context' in param:
-                continue
-            if '@Body' in param:
-                body_param = param.split()[-1]
-            elif '@PathParam' in param or '@QueryParam' in param:
-                body_param = param.split()[-1]  # Se asume como body si es el único dato disponible
-            elif '@HeaderParam' not in param:
-                parts = param.split()
-                if len(parts) == 2:
-                    body_param = parts[1]
+    def replacer(match):
+        full_decl = match.group(1)
+        inner_type = match.group(2).strip()
+        method_name = match.group(3).strip()
+        params = match.group(4).strip()
 
-        if not tiene_http_headers:
-            cleaned_params.append('@Context HttpHeaders httpHeaders')
+        params = add_httpheaders(params)
+        method_body = build_body(inner_type, method_name)
 
-        nueva_firma = f'public {tipo_retorno_completo} {nombre_metodo}({", ".join(cleaned_params)}) {{'
+        return f"{full_decl} {method_name}({params}) {{\n        {method_body}\n    }}"
 
-        cuerpo = f'''        {tipo_generico} data = sendRequestToCamel("direct:{nombre_metodo}", {body_param}, httpHeaders, null, {tipo_generico}.class);
-        {tipo_retorno_completo} resultado = new {tipo_clase_base}<>();
-        resultado.setData(data);
-        resultado.setSuccess(true);
-        resultado.setWarning(false);
-        resultado.setMessage("OK");
-        return resultado;'''
-
-        return f"{nueva_firma}\n{cuerpo}\n    }}"
-
-    matches = list(patron_metodo.finditer(content))
-    print(f"[DEBUG] Reemplazando métodos genericos en clase con {len(matches)} coincidencias.")
-
-    for match in reversed(matches):
-        content = content[:match.start()] + reemplazar(match) + content[match.end():]
-
-    return content
+    return pattern.sub(replacer, content)

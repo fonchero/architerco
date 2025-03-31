@@ -10,7 +10,8 @@ def ensure_camel_helper_method(content: str) -> str:
         'import java.util.Map;',
         'import java.util.stream.Collectors;',
         'import com.fasterxml.jackson.databind.ObjectMapper;',
-        'import com.fasterxml.jackson.core.JsonProcessingException;'
+        'import com.fasterxml.jackson.core.JsonProcessingException;',
+        'import com.fasterxml.jackson.core.type.TypeReference;'
     ]
 
     existing_imports = re.findall(r'^import .*?;', content, re.MULTILINE)
@@ -64,7 +65,8 @@ def ensure_camel_helper_method(content: str) -> str:
 
         return response;
     }
-        private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
+
+    private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
                                      Map<String, String> queryParams, Class<T> responseType) {
         Map<String, Object> headers = httpHeaders.getRequestHeaders()
                 .entrySet()
@@ -94,6 +96,38 @@ def ensure_camel_helper_method(content: str) -> str:
         }
 
         return responseType.cast(response);
+    }
+
+    private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
+                                     Map<String, String> queryParams, TypeReference<T> typeRef) {
+        Map<String, Object> headers = httpHeaders.getRequestHeaders()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().get(0)));
+
+        if (queryParams != null) {
+            queryParams.forEach((key, value) -> {
+                if (value != null) {
+                    headers.put(key, value);
+                }
+            });
+        }
+
+        Object response = producerTemplate.requestBodyAndHeaders(endpoint, body, headers);
+
+        if (response instanceof String) {
+            String responseString = (String) response;
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                return objectMapper.readValue(responseString, typeRef);
+            } catch (JsonProcessingException e) {
+                System.err.println("⚠ Error al deserializar respuesta de Camel (TypeReference): " + e.getMessage());
+            }
+        }
+
+        return null;
     }
 '''
 
