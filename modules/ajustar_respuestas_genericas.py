@@ -24,11 +24,17 @@ def reemplazar_metodos_genericos(content: str) -> str:
         tiene_http_headers = any('@Context' in p and 'HttpHeaders' in p for p in params)
 
         for param in params:
-            if '@Context' not in param:
+            cleaned_params.append(param)
+            if '@Context' in param:
+                continue
+            if '@Body' in param:
+                body_param = param.split()[-1]
+            elif '@PathParam' in param or '@QueryParam' in param:
+                body_param = param.split()[-1]  # Se asume como body si es el único dato disponible
+            elif '@HeaderParam' not in param:
                 parts = param.split()
                 if len(parts) == 2:
                     body_param = parts[1]
-            cleaned_params.append(param)
 
         if not tiene_http_headers:
             cleaned_params.append('@Context HttpHeaders httpHeaders')

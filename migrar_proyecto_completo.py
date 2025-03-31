@@ -80,9 +80,15 @@ if __name__ == "__main__":
 
     # Paso 5.9.2: reemplazar return null por llamada a producerTemplate y agregar lógica de envío
     ejecutar("ajustar_services_llamada_camel.py", [str(ruta_out)])
+    
+    # Paso 5.9.3: ajustar clases que implementaban AggregationStrategy
+    ejecutar("ajustar_clases_aggregation_strategy.py", [str(ruta_out)])
 
     # Paso 5.10: actualizar expresiones ${property.*} a ${exchangeProperty.*}
     ejecutar("ajustar_property_expression.py", [str(ruta_out)])
+    
+    # Paso 5.11: asegurar que Functions.java tenga getDefaultIdTrace(Exchange exchange)
+    ejecutar("ajustar_functions_util.py", [str(ruta_out)])
 
     # Paso 6: generar Dockerfile actualizado
     ejecutar("generar_dockerfile.py", [str(ruta_out)])
