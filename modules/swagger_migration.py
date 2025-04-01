@@ -34,6 +34,9 @@ def migrate_swagger_annotations(content: str) -> str:
     content = content.replace('io.swagger.annotations.ApiResponses', 'io.swagger.v3.oas.annotations.responses.ApiResponses')
     content = content.replace('io.swagger.annotations.ApiResponse', 'io.swagger.v3.oas.annotations.responses.ApiResponse')
 
+    # Eliminar import comodín
+    content = content.replace('import io.swagger.annotations.*;', '')
+    
     # @Api -> @Tag
     def replace_api(match):
         args = match.group(1)

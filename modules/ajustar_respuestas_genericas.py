@@ -1,58 +1,69 @@
 import re
+from typing import List
 
-def ajustar_respuestas_genericas(content: str) -> str:
-    if not content:
-        return content
+def camel_to_direct(method_name: str) -> str:
+    s1 = re.sub(r'([a-z])([A-Z])', r'\1-\2', method_name).lower()
+    return f"direct:{s1}"
 
-    # Detecta métodos con @annotations arriba, que retornen BaseResponse<...> y estén vacíos
+def ajustar_respuestas_genericas(java_code: str) -> str:
+    def build_return_line(method_name, return_type, body_name):
+        endpoint = camel_to_direct(method_name)
+        body = body_name or "null"
+        if return_type.startswith("List<") or return_type.startswith("Map<"):
+            return f'return sendRequestToCamel("{endpoint}", {body}, httpHeaders, new TypeReference<{return_type}>() {{}});'
+        else:
+            return f'return sendRequestToCamel("{endpoint}", {body}, httpHeaders, {return_type}.class);'
+
+    def clean_params(params: str) -> str:
+        body_assigned = False
+        cleaned_params = []
+
+        for part in [p.strip() for p in params.split(',') if p.strip()]:
+            if re.search(r'@(?:ApiParam|TagParam)\s*\([^\)]*\)', part):
+                if not body_assigned:
+                    part = re.sub(r'@(?:ApiParam|TagParam)\s*\([^\)]*\)', '@Body', part)
+                    body_assigned = True
+                else:
+                    part = re.sub(r'@(?:ApiParam|TagParam)\s*\([^\)]*\)\s*', '', part)
+            cleaned_params.append(part)
+
+        cleaned = ', '.join(cleaned_params)
+        cleaned = re.sub(r'@(?:ApiParam|TagParam)\s*\([^\)]*\)\s*', '', cleaned)
+        return cleaned
+
+    def extract_body_name(params: str) -> str:
+        if "@Body" in params:
+            body_match = re.search(r"@Body\s+[\w<>\[\]]+\s+(\w+)", params)
+            if body_match:
+                return body_match.group(1)
+        else:
+            parts = [p.strip() for p in params.split(',') if p.strip()]
+            for part in parts:
+                if not re.search(r"@", part):  # no annotation
+                    tokens = part.split()
+                    if len(tokens) == 2:
+                        return tokens[1]
+        return None
+
+    def transform_method(match):
+        return_type = match.group(2)
+        method_name = match.group(3)
+        params = clean_params(match.group(4))
+
+        body_name = extract_body_name(params)
+
+        if "@Context HttpHeaders" not in params:
+            if params.strip():
+                params += ", "
+            params += "@Context HttpHeaders httpHeaders"
+
+        method_header = f"public BaseResponse<{return_type}> {method_name}({params})"
+        return_line = build_return_line(method_name, return_type, body_name)
+        return f"{method_header} {{\n        {return_line}\n    }}"
+
     pattern = re.compile(
-        r'(?:@\w+(?:\([^)]*\))?\s*)*'                              # Anotaciones múltiples (como @GET, @Path, etc.)
-        r'(public\s+BaseResponse<\s*([\w<>]+)\s*>)\s+'             # Firma: public BaseResponse<T>
-        r'(\w+)\s*\(([^)]*)\)\s*'                                  # Nombre y parámetros
-        r'\{\s*return null;\s*\}',                                 # Cuerpo vacío
-        re.MULTILINE
+        r'(public\s+BaseResponse\s*<\s*([\w<>\[\]]+)\s*>\s+(\w+)\s*\((.*?)\))\s*\{\s*return\s+null;\s*\}',
+        re.DOTALL
     )
 
-    def add_httpheaders(params: str) -> str:
-        if "HttpHeaders" in params:
-            return params
-        if not params.strip():
-            return "@Context HttpHeaders httpHeaders"
-        return params.strip() + ", @Context HttpHeaders httpHeaders"
-
-    def build_body(return_type: str, method_name: str) -> str:
-        camel_endpoint = method_name[0].lower() + method_name[1:]
-
-        if return_type.startswith("List<") and return_type.endswith(">"):
-            return (
-                f'{return_type} data = sendRequestToCamel("direct:{camel_endpoint}", null, httpHeaders, null, new TypeReference<{return_type}>() {{}});\n'
-                f'        BaseResponse<{return_type}> resultado = new BaseResponse<>();\n'
-                f'        resultado.setData(data);\n'
-                f'        resultado.setSuccess(true);\n'
-                f'        resultado.setWarning(false);\n'
-                f'        resultado.setMessage("OK");\n'
-                f'        return resultado;'
-            )
-        else:
-            return (
-                f'{return_type} data = sendRequestToCamel("direct:{camel_endpoint}", null, httpHeaders, null, {return_type}.class);\n'
-                f'        BaseResponse<{return_type}> resultado = new BaseResponse<>();\n'
-                f'        resultado.setData(data);\n'
-                f'        resultado.setSuccess(true);\n'
-                f'        resultado.setWarning(false);\n'
-                f'        resultado.setMessage("OK");\n'
-                f'        return resultado;'
-            )
-
-    def replacer(match):
-        full_decl = match.group(1)
-        inner_type = match.group(2).strip()
-        method_name = match.group(3).strip()
-        params = match.group(4).strip()
-
-        params = add_httpheaders(params)
-        method_body = build_body(inner_type, method_name)
-
-        return f"{full_decl} {method_name}({params}) {{\n        {method_body}\n    }}"
-
-    return pattern.sub(replacer, content)
+    return re.sub(pattern, transform_method, java_code)

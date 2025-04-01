@@ -66,69 +66,73 @@ def ensure_camel_helper_method(content: str) -> str:
         return response;
     }
 
-    private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
-                                     Map<String, String> queryParams, Class<T> responseType) {
+    private <T> BaseResponse<T> sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders, Class<T> responseType) {
+            Map<String, Object> headers = httpHeaders.getRequestHeaders()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().get(0)
+                ));
+       
+            // Obtener la respuesta desde Camel (puede ser un objeto o un JSON en String)
+            Object response = producerTemplate.requestBodyAndHeaders(endpoint, body, headers);
+       
+            BaseResponse<T> baseResponse = new BaseResponse<>();
+       
+            if (response instanceof String) {
+                String responseString = (String) response;
+                try {
+                    // Convertir JSON a objeto dinámicamente
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    T convertedResponse = objectMapper.readValue(responseString, responseType);
+                    baseResponse.setData(convertedResponse);
+                } catch (JsonProcessingException e) {
+                    System.err.println("⚠ Error al deserializar respuesta de Camel: " + e.getMessage());
+                    // Si hay error en la conversión, devolver el JSON en String
+                    baseResponse.setData(null); // O podrías devolver el responseString en un campo especial
+                    baseResponse.setMessage("Error al procesar la respuesta JSON");
+                    //baseResponse.setStatus("ERROR");
+                }
+            } else {
+                // Si la respuesta ya es un objeto del tipo esperado, lo asigna directamente
+                baseResponse.setData(responseType.cast(response));
+            }
+       
+            return baseResponse;
+        }
+    // 3. Para tipos genéricos como List<CreditResponseDto>
+    private <T> BaseResponse<T> sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders, TypeReference<T> typeReference) {
         Map<String, Object> headers = httpHeaders.getRequestHeaders()
                 .entrySet()
                 .stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        e -> e.getValue().get(0)));
-
-        if (queryParams != null) {
-            queryParams.forEach((key, value) -> {
-                if (value != null) {
-                    headers.put(key, value);
-                }
-            });
-        }
+                        e -> e.getValue().get(0)
+                ));
 
         Object response = producerTemplate.requestBodyAndHeaders(endpoint, body, headers);
+        BaseResponse<T> baseResponse = new BaseResponse<>();
 
         if (response instanceof String) {
             String responseString = (String) response;
             try {
                 ObjectMapper objectMapper = new ObjectMapper();
-                return objectMapper.readValue(responseString, responseType);
+                T convertedResponse = objectMapper.readValue(responseString, typeReference);
+                baseResponse.setData(convertedResponse);
             } catch (JsonProcessingException e) {
                 System.err.println("⚠ Error al deserializar respuesta de Camel: " + e.getMessage());
+                baseResponse.setData(null);
+                baseResponse.setMessage("Error al procesar la respuesta JSON");
             }
+        } else {
+            // Esto solo funciona si response es del tipo correcto
+            baseResponse.setData((T) response);
         }
 
-        return responseType.cast(response);
+        return baseResponse;
     }
-
-    private <T> T sendRequestToCamel(String endpoint, Object body, HttpHeaders httpHeaders,
-                                     Map<String, String> queryParams, TypeReference<T> typeRef) {
-        Map<String, Object> headers = httpHeaders.getRequestHeaders()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().get(0)));
-
-        if (queryParams != null) {
-            queryParams.forEach((key, value) -> {
-                if (value != null) {
-                    headers.put(key, value);
-                }
-            });
-        }
-
-        Object response = producerTemplate.requestBodyAndHeaders(endpoint, body, headers);
-
-        if (response instanceof String) {
-            String responseString = (String) response;
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                return objectMapper.readValue(responseString, typeRef);
-            } catch (JsonProcessingException e) {
-                System.err.println("⚠ Error al deserializar respuesta de Camel (TypeReference): " + e.getMessage());
-            }
-        }
-
-        return null;
-    }
+    
 '''
 
     # ======== 3. Insertar el helper antes de la última llave de cierre de clase ==========
