@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+errores = []
+
 def ejecutar(nombre_script, argumentos):
     print(f"\n[STEP] Ejecutando: {nombre_script} {argumentos}")
     try:
@@ -11,22 +13,45 @@ def ejecutar(nombre_script, argumentos):
             stderr=subprocess.STDOUT,
             text=True
         )
-
         for linea in proceso.stdout:
             print(linea, end='')
 
         proceso.wait()
         if proceso.returncode != 0:
             print(f"[ERROR] {nombre_script} terminó con código {proceso.returncode}")
+            errores.append(f"{nombre_script} (código {proceso.returncode})")
     except Exception as e:
         print(f"[ERROR] Excepción al ejecutar {nombre_script}: {e}")
+        errores.append(f"{nombre_script} (excepción)")
+
+def compilar_con_maven(ruta_proyecto):
+    print("\n[STEP] Compilando proyecto migrado con Maven...")
+    try:
+        proceso = subprocess.Popen(
+            "mvn clean compile -DskipTests",
+            cwd=ruta_proyecto,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        for linea in proceso.stdout:
+            print(linea, end='')
+
+        proceso.wait()
+        if proceso.returncode != 0:
+            print(f"[ERROR] Fallo al compilar con Maven (código {proceso.returncode})")
+            errores.append("compilación Maven (fallida)")
+    except Exception as e:
+        print(f"[ERROR] Excepción al compilar con Maven: {e}")
+        errores.append("compilación Maven (excepción)")
 
 def obtener_nombre_directorio(path_str):
     return Path(path_str).resolve().name
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("Uso: python migrar_proyecto_completo.py <IN> <OUT> <pom_template> <application-global.properties> <formatear(1|0)>")
+    if len(sys.argv) != 7:
+        print("Uso: python migrar_proyecto_completo.py <IN> <OUT> <pom_template> <application-global.properties> <formatear(1|0)> <compilar(1|0)>")
         sys.exit(1)
 
     ruta_in = Path(sys.argv[1]).resolve()
@@ -34,6 +59,7 @@ if __name__ == "__main__":
     ruta_pom_template = Path(sys.argv[3]).resolve()
     ruta_global_properties = Path(sys.argv[4]).resolve()
     aplicar_formateo = sys.argv[5] == "1"
+    compilar_maven = sys.argv[6] == "1"
 
     if not ruta_in.exists():
         print(f"[ERROR] Carpeta IN no existe: {ruta_in}")
@@ -42,6 +68,7 @@ if __name__ == "__main__":
     nombre_proyecto = obtener_nombre_directorio(ruta_in)
     ruta_out = ruta_out_base / nombre_proyecto
 
+    # (Pasos previos iguales...)
     # Paso 1: copiar proyecto original
     ejecutar("estructurar_proyecto_migrado.py", [str(ruta_in), str(ruta_out)])
 
@@ -100,4 +127,14 @@ if __name__ == "__main__":
     if aplicar_formateo:
         ejecutar("google_formatter.py", [str(ruta_out)])
 
-    print(f"\n[OK] Migración completada para: {nombre_proyecto}")
+    # Paso 9: compilar el proyecto con maven solo si se indicó
+    if compilar_maven:
+        compilar_con_maven(str(ruta_out))
+
+    if errores:
+        print(f"\n[ERROR] Migración con errores para: {nombre_proyecto}")
+        print("Resumen de errores:")
+        for error in errores:
+            print(f" - {error}")
+    else:
+        print(f"\n[OK] Migración completada para: {nombre_proyecto}")

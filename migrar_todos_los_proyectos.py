@@ -22,7 +22,7 @@ def eliminar_con_permisos(path):
         except Exception as e:
             print(f"[ERROR] No se pudo eliminar {child}: {e}")
 
-def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path, aplicar_format_flag):
+def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path, aplicar_format_flag, compilar_flag):
     in_path = Path(in_path).resolve()
     out_path = Path(out_path).resolve()
     pom_template_path = Path(pom_template_path).resolve()
@@ -43,6 +43,10 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path,
         print("[WARN] No hay subproyectos en la carpeta IN.")
         return
 
+    total = len(proyectos)
+    exitosos = 0
+    fallidos = 0
+
     for proyecto in proyectos:
         print(f"\n[INFO] Migrando proyecto: {proyecto.name}")
         comando = [
@@ -51,9 +55,11 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path,
             str(out_path),
             str(pom_template_path),
             str(global_props_path),
-            aplicar_format_flag
+            aplicar_format_flag,
+            compilar_flag
         ]
         try:
+            resultado = []
             proceso = subprocess.Popen(
                 comando,
                 stdout=subprocess.PIPE,
@@ -62,16 +68,33 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path,
             )
             for linea in proceso.stdout:
                 print(linea, end='', flush=True)
+                resultado.append(linea)
 
             proceso.wait()
-            if proceso.returncode != 0:
+            joined_output = "".join(resultado)
+
+            if "[OK] Migración completada para:" in joined_output:
+                exitosos += 1
+            else:
+                fallidos += 1
                 print(f"[ERROR] La migración de {proyecto.name} terminó con error")
+
         except Exception as e:
             print(f"[ERROR] Excepción al migrar {proyecto.name}: {e}")
+            fallidos += 1
+
+    # Resumen final
+    print("\n" + "=" * 60)
+    print("[RESUMEN DE MIGRACIÓN]")
+    print(f"Proyectos totales: {total}")
+    print(f"[OK] Exitosos       : {exitosos}")
+    print(f"[FAIL] Con errores  : {fallidos}")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("Uso: python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <pom_template.xml> <application-global.properties> <aplicar_format (1|0)>")
+    if len(sys.argv) != 7:
+        print("Uso: python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <pom_template.xml> <application-global.properties> <aplicar_format (1|0)> <compilar_maven (1|0)>")
         sys.exit(1)
 
     carpeta_in = sys.argv[1]
@@ -79,9 +102,10 @@ if __name__ == "__main__":
     pom_template = sys.argv[3]
     global_properties = sys.argv[4]
     aplicar_format_flag = sys.argv[5]
+    compilar_flag = sys.argv[6]
 
-    if aplicar_format_flag not in ("0", "1"):
-        print("[ERROR] El valor del flag aplicar_format debe ser '0' o '1'")
+    if aplicar_format_flag not in ("0", "1") or compilar_flag not in ("0", "1"):
+        print("[ERROR] Los flags deben ser '0' o '1'")
         sys.exit(1)
 
-    ejecutar_para_todos(carpeta_in, carpeta_out, pom_template, global_properties, aplicar_format_flag)
+    ejecutar_para_todos(carpeta_in, carpeta_out, pom_template, global_properties, aplicar_format_flag, compilar_flag)
