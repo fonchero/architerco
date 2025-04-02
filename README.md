@@ -42,7 +42,7 @@ python migrar_todos_los_proyectos.py <carpeta_IN> <carpeta_OUT> <ruta_pom_templa
 📌 **Ejemplo:**
 
 ```bash
-python migrar_todos_los_proyectos.py ./IN ./OUT ./pom_template.xml ./application-global.properties 1 1
+python migrar_todos_los_proyectos.py ./IN ./OUT ./pom-template.xml ./application-global.properties 1 1
 ```
 
 ---
