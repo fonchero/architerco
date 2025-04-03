@@ -28,16 +28,19 @@ def migrate_swagger_annotations(content: str) -> str:
 
     content = re.sub(r'@ApiOperation\s*\((.*?)\)', replace_api_op, content, flags=re.DOTALL)
 
-    # Reemplazar imports
-    content = content.replace('io.swagger.annotations.Api', 'io.swagger.v3.oas.annotations.tags.Tag')
-    content = content.replace('io.swagger.annotations.ApiOperation', 'io.swagger.v3.oas.annotations.Operation')
-    content = content.replace('io.swagger.annotations.ApiResponses', 'io.swagger.v3.oas.annotations.responses.ApiResponses')
-    content = content.replace('io.swagger.annotations.ApiResponse', 'io.swagger.v3.oas.annotations.responses.ApiResponse')
-
-    # Eliminar import comodín
+    # Reemplazar imports solo si es la clase correcta
+    content = re.sub(
+        r'^import\s+io\.swagger\.annotations\.Api\s*;',
+        'import io.swagger.v3.oas.annotations.tags.Tag;',
+        content,
+        flags=re.MULTILINE
+    )
+    content = content.replace('import io.swagger.annotations.ApiOperation', 'import io.swagger.v3.oas.annotations.Operation')
+    content = content.replace('import io.swagger.annotations.ApiResponses', 'import io.swagger.v3.oas.annotations.responses.ApiResponses')
+    content = content.replace('import io.swagger.annotations.ApiResponse', 'import io.swagger.v3.oas.annotations.responses.ApiResponse')
     content = content.replace('import io.swagger.annotations.*;', '')
-    
-    # @Api -> @Tag
+
+    # @Api -> @Tag (solo si precede a una clase)
     def replace_api(match):
         args = match.group(1)
         name = ""
@@ -55,9 +58,14 @@ def migrate_swagger_annotations(content: str) -> str:
             result += f', description = "{desc}"'
         return result + ')'
 
-    content = re.sub(r'@Api\s*\(([^)]*)\)', replace_api, content)
+    # Aplicar solo si precede una definición de clase
+    content = re.sub(
+        r'@Api\s*\(([^)]*)\)\s*(?=\n\s*public\s+(abstract\s+)?class)',
+        lambda m: replace_api(m),
+        content
+    )
 
-    # @ApiResponse -> @ApiResponse (con responseCode y description)
+    # @ApiResponse(code = ..., message = "...") -> @ApiResponse(responseCode = "...", description = "...")
     def replace_api_response(match):
         code = match.group(1)
         msg = match.group(2)

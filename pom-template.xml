@@ -85,7 +85,18 @@
             <artifactId>nimbus-jose-jwt</artifactId>
             <!--version>9.41.1.redhat-00001</version-->
         </dependency>
-
+		
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+		</dependency>
+		
+		<dependency>
+		  <groupId>org.apache.commons</groupId>
+		  <artifactId>commons-lang3</artifactId>
+		  <version>3.12.0</version>
+		</dependency>
+				
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>

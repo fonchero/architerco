@@ -3,6 +3,7 @@ import sys
 import shutil
 import os
 import stat
+import time
 from pathlib import Path
 
 def eliminar_con_permisos(path):
@@ -27,6 +28,8 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path,
     out_path = Path(out_path).resolve()
     pom_template_path = Path(pom_template_path).resolve()
     global_props_path = Path(global_props_path).resolve()
+
+    inicio = time.time()
 
     if out_path.exists() and out_path.is_dir():
         print(f"[INFO] Limpiando carpeta de salida: {out_path}")
@@ -83,14 +86,19 @@ def ejecutar_para_todos(in_path, out_path, pom_template_path, global_props_path,
             print(f"[ERROR] Excepción al migrar {proyecto.name}: {e}")
             fallidos += 1
 
+    fin = time.time()
+    duracion_segundos = fin - inicio
+    minutos = int(duracion_segundos // 60)
+    segundos = int(duracion_segundos % 60)
+
     # Resumen final
     print("\n" + "=" * 60)
     print("[RESUMEN DE MIGRACIÓN]")
-    print(f"Proyectos totales: {total}")
-    print(f"[OK] Exitosos       : {exitosos}")
-    print(f"[FAIL] Con errores  : {fallidos}")
+    print(f"Proyectos totales : {total}")
+    print(f"[OK] Exitosos      : {exitosos}")
+    print(f"[FAIL] Con errores : {fallidos}")
+    print(f" Tiempo total     : {minutos} min {segundos} seg")
     print("=" * 60)
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 7:

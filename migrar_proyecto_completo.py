@@ -1,3 +1,4 @@
+#migrar_proyecto_completo.py
 import subprocess
 import sys
 from pathlib import Path
@@ -28,7 +29,7 @@ def compilar_con_maven(ruta_proyecto):
     print("\n[STEP] Compilando proyecto migrado con Maven...")
     try:
         proceso = subprocess.Popen(
-            "mvn clean compile -DskipTests",
+            "mvn clean package -DskipTests",
             cwd=ruta_proyecto,
             shell=True,
             stdout=subprocess.PIPE,
@@ -45,6 +46,14 @@ def compilar_con_maven(ruta_proyecto):
     except Exception as e:
         print(f"[ERROR] Excepción al compilar con Maven: {e}")
         errores.append("compilación Maven (excepción)")
+
+def validar_healthcheck(ruta_proyecto):
+    print("\n[STEP] Validando healthcheck...")
+    resultado = subprocess.run([
+        sys.executable, "lanzar_quarkus_y_probar_health.py", ruta_proyecto
+    ])
+    if resultado.returncode != 0:
+        errores.append("healthcheck fallido")
 
 def obtener_nombre_directorio(path_str):
     return Path(path_str).resolve().name
@@ -68,7 +77,6 @@ if __name__ == "__main__":
     nombre_proyecto = obtener_nombre_directorio(ruta_in)
     ruta_out = ruta_out_base / nombre_proyecto
 
-    # (Pasos previos iguales...)
     # Paso 1: copiar proyecto original
     ejecutar("estructurar_proyecto_migrado.py", [str(ruta_in), str(ruta_out)])
 
@@ -107,15 +115,21 @@ if __name__ == "__main__":
 
     # Paso 5.9.2: reemplazar return null por llamada a producerTemplate y agregar lógica de envío
     ejecutar("ajustar_services_llamada_camel.py", [str(ruta_out)])
-    
+
     # Paso 5.9.3: ajustar clases que implementaban AggregationStrategy
     ejecutar("ajustar_clases_aggregation_strategy.py", [str(ruta_out)])
 
     # Paso 5.10: actualizar expresiones ${property.*} a ${exchangeProperty.*}
     ejecutar("ajustar_property_expression.py", [str(ruta_out)])
-    
+
     # Paso 5.11: asegurar que Functions.java tenga getDefaultIdTrace(Exchange exchange)
     ejecutar("ajustar_functions_util.py", [str(ruta_out)])
+
+    # Paso 5.11.1: reemplazar setProperty(routeId...) por getFromRouteId()
+    ejecutar("ajustar_exchange_setproperty.py", [str(ruta_out)])
+
+    # Paso 5.12: agregar métodos de healthcheck a los servicios
+    ejecutar("agregar_healthcheck_service.py", [str(ruta_out)])
 
     # Paso 6: generar Dockerfile actualizado
     ejecutar("generar_dockerfile.py", [str(ruta_out)])
@@ -130,6 +144,9 @@ if __name__ == "__main__":
     # Paso 9: compilar el proyecto con maven solo si se indicó
     if compilar_maven:
         compilar_con_maven(str(ruta_out))
+        # Paso 10: ejecutar healthcheck solo si compila correctamente
+        if "compilación Maven (fallida)" not in errores and "compilación Maven (excepción)" not in errores:
+            validar_healthcheck(str(ruta_out))
 
     if errores:
         print(f"\n[ERROR] Migración con errores para: {nombre_proyecto}")
